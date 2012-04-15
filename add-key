@@ -1,0 +1,226 @@
+#!/bin/bash
+# File Name: add-key
+# Version: 1.0.0
+# Purpose:  Add keybinds to fluxbox and / or icewm key files
+# Authors: Dave
+
+# Copyright (C) Tuesday, Feb. 7, 2011  by Dave / david.dejong02@gmail.com
+# License: gplv2
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#################################################################################################################################################
+TEXTDOMAINDIR=/usr/share/locale
+TEXTDOMAIN=add-key
+
+export DIALOG=$(cat <<End_of_Text 
+<window title="antiX Keys" window-position="1">
+
+<vbox>
+<hbox>
+  <vbox>
+  <frame>
+    <frame `gettext $"First Key"`>
+    <combobox>
+	  <variable>FIRST</variable>
+      <item>`gettext $"Alt"`</item>
+      <item>`gettext $"Control"`</item>
+      <item>`gettext $"Super"`</item>
+	</combobox>
+    </frame>
+
+    <frame `gettext $"Second Key"`>
+	<combobox>
+	  <variable>SECOND</variable>
+      <item>`gettext $"Alt"`</item>
+      <item>`gettext $"Control"`</item>
+      <item>`gettext $"Super"`</item>
+      <item>""</item>
+	</combobox>
+    </frame>
+    
+    <frame `gettext $"Third Key (a-z) (0-9)"`>
+    <entry>
+      <default>a</default>
+      <variable>THIRD</variable>
+    </entry>
+    </frame>
+    <frame `gettext $"Command to run"`>
+    <entry>
+      <default>roxterm</default>
+      <variable>COMMAND</variable>
+    </entry>
+    </frame>
+  </frame>
+  </vbox>
+
+  <vbox>
+  <frame>
+    <frame `gettext $"Where to set key command"`>
+    <radiobutton active="true">
+      <label>"`gettext $"Apply to fluxbox keys"`"</label>
+      <variable>FLUXKEYS</variable>
+    </radiobutton>
+    <radiobutton active="false">
+      <label>"`gettext $"Apply to icewm keys"`"</label>
+      <variable>ICEKEYS</variable>
+    </radiobutton>
+    </frame>
+    <frame `gettext $"Remove Keys Entry"`> 
+    <checkbox>
+    <label>Delete?</label>
+	<variable>DELETE</variable>
+	<default>false</default>
+	</checkbox>
+    </frame>
+    <frame `gettext $"See Current Keybinds"`>
+    <button>
+    <label>"`gettext $"Fluxbox Keys"`"</label>
+    <action>cat $HOME/.fluxbox/keys | grep : | sed "s/Mod1/Alt/ig" | sed "s/Mod4/Super/ig" |sed "s/:/=\ /ig" | yad --list --column="Keybinds" --title="flxubox keys" --text=""</action>
+    </button>
+    <button>
+    <label>"`gettext $"Icewm Keys"`"</label>
+    <action>cat $HOME/.icewm/keys | grep "key " | sed "s/Ctrl/Control/ig" |sed "s/key\ \"//ig" | sed "s/\"\ /\ =\ /ig" |sed "s/+/\ /ig"|yad --list --column="Keybinds" --title="icewm keys" --text=""</action>
+    </button>
+    </frame>
+  </frame>
+  </vbox>
+  </hbox>
+  <hbox>
+ 	<button ok></button>
+ 	<button cancel></button>
+  </hbox>
+</vbox>
+
+</window>
+End_of_Text
+)
+
+I=$IFS; IFS=""
+for STATEMENTS in  $(gtkdialog --program DIALOG); do
+  eval $STATEMENTS
+done
+IFS=$I
+
+if [ "$EXIT" = "OK" ] ; then
+ if [ "$FLUXKEYS" = "true" ] ; then
+ if [ "$DELETE" = "true" ] ; then
+ KEYLINE=`cat $HOME/.fluxbox/keys |grep -v "#"| grep -o ".*"|sed "s/Mod1/Alt/ig" |sed "s/Mod4/Super/ig"| yad --list --column="Startup" --height="300" --width="500"`;
+  if [ "$?" = "0" ]; then
+  KEYFIND=`echo "$KEYLINE" | sed "s/Alt/Mod1/ig" | sed "s/Super/Mod4/ig"`;
+  cp -f $HOME/.fluxbox/keys $HOME/.fluxbox/keys.old;
+  cat $HOME/.fluxbox/keys.old | grep -v "$KEYLINE" > $HOME/.fluxbox/keys;
+  yad --text=$"Entry Removed";
+  $0 &
+  exit;
+  else
+  $0 &
+  exit;
+  fi
+ else
+  if [ "$FIRST" = "Alt" ] ; then
+	key1="Mod1";
+  elif [ "$FIRST" = "Control" ] ; then
+    key1="Control";
+  elif [ "$FIRST" = "Super" ] ; then
+    key1="Mod4";
+  fi
+  if [ "$SECOND" = "Alt" ] ; then
+	key2="Mod1";
+  elif [ "$SECOND" = "Control" ] ; then
+    key2="Control";
+  elif [ "$SECOND" = "Super" ] ; then
+    key2="Mod4";
+  fi
+  test=`cat $HOME/.fluxbox/keys | grep -o ".*:" | grep "$key1" | sed "s/$key1//ig" | grep "$key2" | sed "s/$key2//ig" | grep -i "$THIRD"`;
+  if [ "$key1" = "$key2" ] ; then
+  yad --text $"Key #1 and Key #2 cannot be the same";
+  $0 & 
+  exit;
+  elif [ "$THIRD" = "" ] ; then
+  yad --text $"Need an entry for the third key";
+  $0 & 
+  exit;
+  elif [ "$COMMAND" = "" ] ; then
+  yad --text $"Need a command to run";
+  $0 & 
+  exit;
+  elif [ "$test" = "" ] ; then
+  echo "# Key config to run $COMMAND" >> $HOME/.fluxbox/keys;
+  echo "$key1 $key2 $THIRD :Exec $COMMAND" >> $HOME/.fluxbox/keys;
+  yad --text $"Fluxbox keys added, may need to reconfigure through menu";
+  $0 & 
+  exit;
+  else
+  yad --text $"That key combination exists try another";
+  $0 & 
+  exit;
+  fi
+ fi
+ fi
+ if [ "$ICEKEYS" = "true" ] ; then 
+ if [ "$DELETE" = "true" ] ; then
+ KEYLINE=`cat $HOME/.icewm/keys|grep -v "#"|grep -o ".*"|yad --list --column="Startup" --height="300" --width="500"`;
+  if [ "$?" = "0" ]; then
+  KEYFIND=`echo "$KEYLINE"`;
+  cp -f $HOME/.icewm/keys $HOME/.icewm/keys.old;
+  cat $HOME/.icewm/keys.old | grep -v "$KEYLINE" > $HOME/.icewm/keys;
+  yad --text=$"Entry Removed";
+  $0 &
+  exit;
+  else
+  $0 &
+  exit;
+  fi
+ else
+  if [ "$FIRST" = "Alt" ] ; then
+	key1="Alt";
+  elif [ "$FIRST" = "Control" ] ; then
+    key1="Ctrl";
+  elif [ "$FIRST" = "Super" ] ; then
+    key1="Super_L";
+  fi
+  if [ "$SECOND" = "Alt" ] ; then
+	key2="Alt";
+  elif [ "$SECOND" = "Control" ] ; then
+    key2="Ctrl";
+  elif [ "$SECOND" = "Super" ] ; then
+    key2="Super_L";
+  fi
+  test=`cat $HOME/.icewm/keys | grep -o ".*:" | grep "$key1" | sed "s/$key1//ig" | grep "$key2" | sed "s/$key2//ig" | grep -i "$THIRD"`;
+  if [ "$key1" = "$key2" ] ; then
+  yad --text $"Key #1 and Key #2 cannot be the same";
+  $0 &
+  exit;
+  elif [ "$THIRD" = "" ] ; then
+  yad --text $"Need an entry for the third key";
+  $0 & 
+  exit;
+  elif [ "$COMMAND" = "" ] ; then
+  yad --text $"Need a command to run";
+  $0 & 
+  exit;
+  elif [ "$test" = "" ] ; then
+  echo "# Key config to run $COMMAND" >> $HOME/.icewm/keys;
+  echo "key \"$key1+$key2+$THIRD\" $COMMAND" >> $HOME/.icewm/keys;
+  yad --text $"IceWM keys added, may need to restart through menu";
+  $0 & 
+  exit;
+  else
+  yad --text $"That key combination exists try another";
+  $0 & 
+  exit;
+  fi
+ fi
+ fi
+fi
