@@ -1,0 +1,510 @@
+#!/bin/bash
+# File Name: add-start
+# Version: 1.5.0
+# Purpose:  Add startup commands to the icewm / fluxbox startup
+# Authors: Dave
+
+# Copyright (C) Tuesday, Feb. 7, 2011  by Dave / david@daveserver.info
+# License: gplv2
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+################################################################################
+#################################################################
+
+TEXTDOMAINDIR=/usr/share/locale
+TEXTDOMAIN=add-start
+
+function help {
+	echo "    -it|--icewmt         select and apply icewm in terminal"
+	echo "    -ft|--fluxboxt       select and apply fluxbox in terminal"
+	echo "    -ig|--icewmg         select and apply icewm in graphical"
+	echo "    -fg|--fluxboxg       select and apply fluxbox in graphical"
+    echo "    -t|--terminal      run terminal version"
+    echo "    -g|--gui           run graphical version"
+    echo "    -h|--help          display this help"
+    echo
+    exit
+}
+
+
+function graphical-fluxbox {
+export DIALOG=$(cat <<End_of_Text 
+<window title="antiX Startup" window-position="1">
+
+<vbox>
+<hbox>
+  <vbox>
+  <frame>
+    <frame `gettext $"Command to add"`>
+     <entry>
+      <default>roxterm</default>
+      <variable>ADD</variable>
+     </entry>
+    </frame>
+	<frame `gettext $"Add a sleep time"`>
+	 <checkbox>
+	 <label>"`gettext $"Sleep Time?"`"</label>
+	 <variable>SLEEP</variable>
+	 <default>false</default>
+	 <action>if true enable:SLEEPTIME</action>
+     <action>if false disable:SLEEPTIME</action>
+	 </checkbox>
+	 <entry>
+      <default>5</default>
+      <variable>SLEEPTIME</variable>
+      <visible>disabled</visible>
+     </entry>
+	</frame>
+  </frame>
+  </vbox>
+
+  <vbox>
+  <frame>
+    <frame `gettext $"See Current Startup"`>
+    <button>
+    <label>"`gettext $"Fluxbox Startup"`"</label>
+    <action>cat $HOME/.fluxbox/startup |grep -v "#"| grep -o ".*"|sed "s/&//ig" | yad --title="add-start --> view start" --list --column="Startup" --height="300" --width="500" --button="OK:1";</action>
+    </button>
+    </frame>
+    <frame `gettext $"Remove startup item"`> 
+    <checkbox>
+    <label>"`gettext $"Delete?"`"</label>
+	<variable>DELETE</variable>
+	<default>false</default>
+	</checkbox>
+    </frame>
+  </frame>
+  </vbox>
+  </hbox>
+  <hbox>
+ 	<button ok></button>
+ 	<button cancel></button>
+  </hbox>
+</vbox>
+
+</window>
+End_of_Text
+)
+
+I=$IFS; IFS=""
+for STATEMENTS in  $(gtkdialog --program DIALOG); do
+  eval $STATEMENTS
+done
+IFS=$I
+
+if [ "$EXIT" = "OK" ] ; then
+ if [ "$DELETE" = "true" ] ; then
+ STARTLINE=`cat $HOME/.fluxbox/startup |grep -v "#"| grep -o ".*" | yad --list --column="Startup" --height="300" --width="500" --button="CANCEL:1" --button="OK:0"`;
+  if [ "$?" = "0" ]; then
+  DELETELINE=`echo $STARTLINE | cut -d "|" -f1`;
+  cp -f $HOME/.fluxbox/startup $HOME/.fluxbox/startup.old;
+  cat $HOME/.fluxbox/startup.old | grep -v "$DELETELINE" > $HOME/.fluxbox/startup;
+  chmod 744 $HOME/.fluxbox/startup;
+  yad --title=$"add-start -> information" --image="info" --text=$"  Entry Removed  " --button="OK:1";
+  $0 -fg &
+  exit;
+  elif [ "$?" = "1" ]; then
+  $0 -fg &
+  exit;
+  else
+  yad --title=$"add-start -> error" --image="error" --text=$"  Error, requested action is unknown.  " --button="OK:1";
+  fi
+ else
+  if [ "$ADD" = "" ] ; then 
+  yad --title=$"add-start -> error" --image="error" --text=$"  Need a command to execute  " --button="OK:1";
+  elif [ "$SLEEP" = "true" ] ; then  
+   if [ "$SLEEPTIME" = "" ] ; then
+   yad --title=$"add-start -> error" --image="error" --text=$"  Need a sleep time value  " --button="OK:1";
+   $0 -fg &
+   exit;
+   else
+   cat $HOME/.fluxbox/startup |grep -v "#!/bin/bash" > $HOME/.fluxbox/startup.old;
+   echo "#!/bin/bash" > $HOME/.fluxbox/startup;
+   echo "sleep $SLEEPTIME && $ADD &" >> $HOME/.fluxbox/startup;
+   cat $HOME/.fluxbox/startup.old >> $HOME/.fluxbox/startup;
+   chmod 744 $HOME/.fluxbox/startup;
+   yad --title=$"add-start -> information" --image="info" --text=$"  $ADD added with sleep  " --button="OK:1";
+   $0 -fg &
+   exit;
+   fi
+  else
+  cat $HOME/.fluxbox/startup |grep -v "#!/bin/bash" > $HOME/.fluxbox/startup.old;
+  echo "#!/bin/bash" > $HOME/.fluxbox/startup;
+  echo "$ADD &" >> $HOME/.fluxbox/startup;
+  cat $HOME/.fluxbox/startup.old >> $HOME/.fluxbox/startup;
+  chmod 744 $HOME/.fluxbox/startup;
+  yad --title=$"add-start -> information" --image="info" --text=$"  $ADD added  " --button="OK:1";
+  $0 -fg &
+  exit;
+  fi
+ fi
+fi
+}
+
+function terminal-fluxbox {
+	while :
+	do
+	echo $"Choose an option.";
+	echo $"0) exit (this is for any question)";
+	echo $"1) delete entry";
+	echo $"2) add entry";
+	read DELETEORADD;
+	 if [ "$DELETEORADD" = "0" ];then
+	 exit
+	 elif [ "$DELETEORADD" = "1" ];then
+	 echo $"Choose a line";
+	 cat $HOME/.fluxbox/startup |grep -v "#"| grep -o ".*" |cat -n ;
+	 read LINE;
+	  if [ "$LINE" = "0" ]; then
+	  exit;
+	  fi
+	 cp -f $HOME/.fluxbox/startup $HOME/.fluxbox/startup.old;
+	 DELLINE=`cat $HOME/.fluxbox/startup.old |grep -v "#"| grep -o ".*" |head -$LINE|tail -1`;
+	 echo $DELLINE;
+	 cat $HOME/.fluxbox/startup.old |grep -v "$DELLINE" > $HOME/.fluxbox/startup;
+	 chmod 744 $HOME/.fluxbox/startup;
+	 echo $"View the change? (y/n)";
+	 read CHANGE;
+	  if [ "$CHANGE" = "0" ];then
+	  exit
+	  elif [ "$CHANGE" = "y" -o "$CHANGE" = "Y" ];then 
+	  cat $HOME/.fluxbox/startup |grep -v "#"| grep -o ".*" |cat -n ;
+	  else
+	  exit;
+	  fi
+	 elif [ "$DELETEORADD" = "2" ];then
+	 echo $"type the command you would like to add";
+	 read COMMAND;
+	  if [ "$COMMAND" = "0" ];then
+	  exit;
+	  fi
+	 echo $"would you like to add a sleep time? (y/n)"
+	 read SLEEP
+	  if [ "$SLEEP" = "0" ];then
+	  exit
+	  elif [ "$SLEEP" = "y" -o "$SLEEP" = "Y" ];then
+	  echo $"type a value in secconds"
+	  read TIME
+	   if [ "$TIME" = "0" ]; then
+	   exit
+	   fi
+	  cat $HOME/.fluxbox/startup |grep -v "#!/bin/bash" > $HOME/.fluxbox/startup.old;
+      echo "#!/bin/bash" > $HOME/.fluxbox/startup;
+      echo "sleep $TIME && $COMMAND &" >> $HOME/.fluxbox/startup;
+      cat $HOME/.fluxbox/startup.old >> $HOME/.fluxbox/startup;
+      chmod 744 $HOME/.fluxbox/startup;
+	  else
+	  cat $HOME/.fluxbox/startup |grep -v "#!/bin/bash" > $HOME/.fluxbox/startup.old;
+      echo "#!/bin/bash" > $HOME/.fluxbox/startup;
+      echo "$COMMAND &" >> $HOME/.fluxbox/startup;
+      cat $HOME/.fluxbox/startup.old >> $HOME/.fluxbox/startup;
+      chmod 744 $HOME/.fluxbox/startup;
+	  fi
+	 echo $"View the change? (y/n)";
+	 read CHANGE;
+	  if [ "$CHANGE" = "0" ];then
+	  exit
+	  elif [ "$CHANGE" = "y" -o "$CHANGE" = "Y" ];then 
+	  cat $HOME/.fluxbox/startup |grep -v "#"| grep -o ".*" |cat -n ;
+	  else
+	  exit;
+	  fi
+	 else
+	 echo ""
+	 echo $"ERROR"
+	 echo $"That is not an option, select again.";
+	 fi
+	done
+}
+
+function graphical-icewm {
+export DIALOG=$(cat <<End_of_Text 
+<window title="antiX Startup" window-position="1">
+
+<vbox>
+<hbox>
+  <vbox>
+  <frame>
+    <frame `gettext $"Command to add"`>
+     <entry>
+      <default>roxterm</default>
+      <variable>ADD</variable>
+     </entry>
+    </frame>
+	<frame `gettext $"Add a sleep time"`>
+	 <checkbox>
+	 <label>"`gettext $"Sleep Time?"`"</label>
+	 <variable>SLEEP</variable>
+	 <default>false</default>
+	 <action>if true enable:SLEEPTIME</action>
+     <action>if false disable:SLEEPTIME</action>
+	 </checkbox>
+	 <entry>
+      <default>5</default>
+      <variable>SLEEPTIME</variable>
+      <visible>disabled</visible>
+     </entry>
+	</frame>
+  </frame>
+  </vbox>
+
+  <vbox>
+  <frame>
+    <frame `gettext $"See Current Startup"`>
+    <button>
+    <label>"`gettext $"IceWM Startup"`"</label>
+    <action>cat $HOME/.icewm/startup |grep -v "#"| grep -o ".*"|sed "s/&//ig" | yad --title="add-start --> view start" --list --column="Startup" --height="300" --width="500" --button="OK:1";</action>
+    </button>
+    </frame>
+    <frame `gettext $"Remove startup item"`> 
+    <checkbox>
+    <label>"`gettext $"Delete?"`"</label>
+	<variable>DELETE</variable>
+	<default>false</default>
+	</checkbox>
+    </frame>
+  </frame>
+  </vbox>
+  </hbox>
+  <hbox>
+ 	<button ok></button>
+ 	<button cancel></button>
+  </hbox>
+</vbox>
+
+</window>
+End_of_Text
+)
+
+
+I=$IFS; IFS=""
+for STATEMENTS in  $(gtkdialog --program DIALOG); do
+  eval $STATEMENTS
+done
+IFS=$I
+
+if [ "$EXIT" = "OK" ] ; then
+ if [ "$DELETE" = "true" ] ; then
+ STARTLINE=`cat $HOME/.icewm/startup |grep -v "#"| grep -o ".*"| yad --list --column="Startup" --height="300" --width="500" --button="CANCEL:1" --button="OK:0"`;
+  if [ "$?" = "0" ]; then
+  cp -f $HOME/.icewm/startup $HOME/.icewm/startup.old;
+  cat $HOME/.icewm/startup.old | grep -v "$STARTLINE" > $HOME/.icewm/startup;
+  chmod 744 $HOME/.icewm/startup;
+  yad --title=$"add-start -> information" --image="info" --text=$"  Entry Removed  " --button="OK:1";
+  $0 -ig &
+  exit;
+  elif [ "$?" = "1" ]; then
+  $0 -fg &
+  exit;
+  else
+  yad --title=$"add-start -> error" --image="error" --text=$"  Error, requested action is unknown.  " --button="OK:1";
+  fi
+ else
+  if [ "$ADD" = "" ] ; then 
+  yad --title=$"add-start -> error" --image="error" --text=$"  Need a command to execute  " --button="OK:1";
+  elif [ "$SLEEP" = "true" ] ; then  
+   if [ "$SLEEPTIME" = "" ] ; then
+   yad --title=$"add-start -> error" --image="error" --text=$"  Need a sleep time value  " --button="OK:1";
+   $0 -fg &
+   exit;
+   else
+   cat $HOME/.icewm/startup |grep -v "#!/bin/bash" > $HOME/.icewm/startup.old;
+   echo "#!/bin/bash" > $HOME/.icewm/startup;
+   echo "sleep $SLEEPTIME && $ADD &" >> $HOME/.icewm/startup;
+   cat $HOME/.icewm/startup.old >> $HOME/.icewm/startup;
+   chmod 744 $HOME/.icewm/startup;
+   yad --title=$"add-start -> information" --image="info" --text=$"  $ADD added with sleep  " --button="OK:1";
+   $0 -ig &
+   exit;
+   fi
+  else
+  cat $HOME/.icewm/startup |grep -v "#!/bin/bash" > $HOME/.icewm/startup.old;
+  echo "#!/bin/bash" > $HOME/.icewm/startup;
+  echo "$ADD &" >> $HOME/.icewm/startup;
+  cat $HOME/.icewm/startup.old >> $HOME/.icewm/startup;
+  chmod 744 $HOME/.icewm/startup;
+  yad --title=$"add-start -> information" --image="info" --text=$"  $ADD added  " --button="OK:1";
+  $0 -ig &
+  exit;
+  fi
+ fi
+fi
+}
+
+function terminal-icewm {
+	while :
+	do
+	echo $"Choose an option.";
+	echo $"0) exit (this is for any question)";
+	echo $"1) delete entry";
+	echo $"2) add entry";
+	read DELETEORADD;
+	 if [ "$DELETEORADD" = "0" ];then
+	 exit
+	 elif [ "$DELETEORADD" = "1" ];then
+	 echo $"Choose a line";
+	 cat $HOME/.icewm/startup |grep -v "#"| grep -o ".*" |cat -n ;
+	 read LINE;
+	  if [ "$LINE" = "0" ]; then
+	  exit;
+	  fi
+	 cp -f $HOME/.icewm/startup $HOME/.icewm/startup.old;
+	 DELLINE=`cat $HOME/.icewm/startup.old |grep -v "#"| grep -o ".*" |head -$LINE|tail -1`;
+	 echo $DELLINE;
+	 cat $HOME/.icewm/startup.old |grep -v "$DELLINE" > $HOME/.icewm/startup;
+	 chmod 744 $HOME/.icewm/startup;
+	 echo $"View the change? (y/n)";
+	 read CHANGE;
+	  if [ "$CHANGE" = "0" ];then
+	  exit
+	  elif [ "$CHANGE" = "y" -o "$CHANGE" = "Y" ];then 
+	  cat $HOME/.icewm/startup |grep -v "#"| grep -o ".*" |cat -n ;
+	  else
+	  exit;
+	  fi
+	 elif [ "$DELETEORADD" = "2" ];then
+	 echo $"type the command you would like to add";
+	 read COMMAND;
+	  if [ "$COMMAND" = "0" ];then
+	  exit;
+	  fi
+	 echo $"would you like to add a sleep time? (y/n)"
+	 read SLEEP
+	  if [ "$SLEEP" = "0" ];then
+	  exit
+	  elif [ "$SLEEP" = "y" -o "$SLEEP" = "Y" ];then
+	  echo $"type a value in seconds"
+	  read TIME
+	   if [ "$TIME" = "0" ]; then
+	   exit
+	   fi
+	  cat $HOME/.icewm/startup |grep -v "#!/bin/bash" > $HOME/.icewm/startup.old;
+      echo "#!/bin/bash" > $HOME/.icewm/startup;
+      echo "sleep $TIME && $COMMAND &" >> $HOME/.icewm/startup;
+      cat $HOME/.icewm/startup.old >> $HOME/.icewm/startup;
+      chmod 744 $HOME/.icewm/startup;
+	  else
+	  cat $HOME/.icewm/startup |grep -v "#!/bin/bash" > $HOME/.icewm/startup.old;
+      echo "#!/bin/bash" > $HOME/.icewm/startup;
+      echo "$COMMAND &" >> $HOME/.icewm/startup;
+      cat $HOME/.icewm/startup.old >> $HOME/.icewm/startup;
+      chmod 744 $HOME/.icewm/startup;
+	  fi
+	 echo $"View the change? (y/n)";
+	 read CHANGE;
+	  if [ "$CHANGE" = "0" ];then
+	  exit
+	  elif [ "$CHANGE" = "y" -o "$CHANGE" = "Y" ];then 
+	  cat $HOME/.icewm/startup |grep -v "#"| grep -o ".*" |cat -n ;
+	  else
+	  exit;
+	  fi
+	 else
+	 echo ""
+	 echo $"ERROR"
+	 echo $"That is not an option, select again.";
+	 fi
+	done
+}
+
+
+function start {
+session_type="$(<$HOME/.wallpaper/session)"
+if [ "$session_type" = "fluxbox" -o "$session_type" = "rox-fluxbox" ]; then
+ if [ "$MODE" = "terminal" ];then
+ terminal-fluxbox;
+ elif [ "$MODE" = "graphical" ];then
+ graphical-fluxbox;
+ else
+ yad --title=$"test" --text=$"Error, $MODE is not a valid mode" --image="error" --button=OK:1 ;
+ fi
+elif [ "$session_type" = "icewm" -o "$session_type" = "rox-icewm" ]; then
+ if [ "$MODE" = "terminal" ];then
+ terminal-icewm;
+ elif [ "$MODE" = "graphical" ];then
+ graphical-icewm;
+ else
+ yad --title=$"test" --text=$"Error, $MODE is not a valid mode" --image="error" --button=OK:1 ;
+ fi
+icewm;
+else
+yad --title=$"test" --text=$"Error, $session_type is not a valid session" --image="error" --button=OK:1 ;
+fi
+}
+
+TERM=false
+GRAPHIC=false
+HELP=false
+ICEWMG=false
+FLUXBOXG=false
+ICEWMT=false
+FLUXBOXT=false
+
+for args; do
+case "$1" in
+        -t|--terminal)     TERM=true;;
+        -g|--gui)   GRAPHIC=true;;
+        -ig|--icewmg) 	ICEWMG=true;;
+		-fg|--fluxboxg) 	FLUXBOXG=true;;
+		-it|--icewmt) 	ICEWMT=true;;
+		-ft|--fluxboxt) 	FLUXBOXT=true;;
+		-h|--help)    HELP=true;;
+        --)         shift; break;;
+        -*)         echo "Unrecognized option: $1" >> /var/log/add-start.error;;
+        *)      break;;
+    esac
+shift
+done
+
+
+$ICEWMG && {
+	graphical-icewm;
+	exit
+}
+
+$FLUXBOXG && {
+	graphical-fluxbox;
+	exit
+}
+
+$ICEWMT && {
+	terminal-icewm;
+	exit
+}
+
+$FLUXBOXT && {
+	terminal-fluxbox;
+	exit
+}
+
+$TERM && {
+    MODE="terminal";
+    start;
+    exit
+}
+
+$GRAPHIC && {
+	MODE="graphical";
+    start;
+    exit
+}
+
+$HELP && {
+	help;
+	exit
+}
+
+# Execute if script is NOT called
+MODE="graphical";
+start
